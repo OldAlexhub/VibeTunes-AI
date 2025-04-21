@@ -25,7 +25,7 @@ function App() {
         { text, emotion }
       );
 
-      console.log("⚙️ Axios response:", response);
+      //console.log("⚙️ Axios response:", response);
 
       // 1) Grab response.data
       let payload = response.data;
@@ -37,7 +37,7 @@ function App() {
         try {
           payload = JSON.parse(sanitized);
         } catch (err) {
-          console.warn("Could not parse sanitized JSON:", err);
+          //console.warn("Could not parse sanitized JSON:", err);
         }
       }
 
@@ -53,7 +53,7 @@ function App() {
         setBackendMessage(payload.message || "No matches found.");
       } else {
         setBackendMessage("Unexpected response format.");
-        console.warn("Unexpected payload:", payload);
+        //console.warn("Unexpected payload:", payload);
       }
     } catch (error) {
       console.error("⚠️ AxiosError:", error);
