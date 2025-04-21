@@ -27,10 +27,22 @@ function App() {
 
       console.log("⚙️ Axios response:", response);
 
-      const payload = response.data;
+      // 1) Grab response.data
+      let payload = response.data;
 
+      // 2) If it's a string, sanitize and parse JSON
+      if (typeof payload === "string") {
+        // Replace any standalone NaN (e.g. "released":NaN) with null
+        const sanitized = payload.replace(/\bNaN\b/g, "null");
+        try {
+          payload = JSON.parse(sanitized);
+        } catch (err) {
+          console.warn("Could not parse sanitized JSON:", err);
+        }
+      }
+
+      // 3) Handle both raw-array and wrapped-object shapes
       if (Array.isArray(payload)) {
-        // backend returned raw array
         setResults(payload);
       } else if (payload.status === "success" && Array.isArray(payload.data)) {
         setResults(payload.data);
@@ -38,16 +50,31 @@ function App() {
         payload.status === "no_matches" ||
         payload.status === "error"
       ) {
-        setBackendMessage(payload.message || "No matches found. Try again.");
+        setBackendMessage(payload.message || "No matches found.");
       } else {
-        setBackendMessage("Unexpected response format from server.");
+        setBackendMessage("Unexpected response format.");
         console.warn("Unexpected payload:", payload);
       }
     } catch (error) {
       console.error("⚠️ AxiosError:", error);
-      setBackendMessage(
-        "Network error. Please check that your backend is reachable."
-      );
+
+      if (error.response) {
+        const { status, data } = error.response;
+        if (status >= 500) {
+          setBackendMessage("⚠️ Server error (500). Please try again later.");
+        } else if (status >= 400) {
+          let msg = "Problem with your request.";
+          try {
+            const json = typeof data === "string" ? JSON.parse(data) : data;
+            msg = json.message || msg;
+          } catch {}
+          setBackendMessage(`⚠️ ${msg}`);
+        }
+      } else {
+        setBackendMessage(
+          "⚠️ Network error. Check that your backend is running."
+        );
+      }
     } finally {
       setLoading(false);
       setShowCookingMessage(false);
@@ -74,9 +101,10 @@ function App() {
         </div>
       </header>
 
-      {/* Form */}
+      {/* Main */}
       <main className="flex-grow-1">
         <div className="container my-5">
+          {/* Form */}
           <form onSubmit={handleSubmit} className="card shadow p-4 border-0">
             <h2 className="mb-4 text-center text-primary fw-semibold">
               Describe Your Mood
@@ -89,7 +117,7 @@ function App() {
                 id="emotion"
                 type="text"
                 className="form-control form-control-lg"
-                placeholder="e.g., joy, sadness, excitement..."
+                placeholder="e.g., joy, sadness..."
                 value={emotion}
                 onChange={(e) => setEmotion(e.target.value)}
                 required
@@ -103,7 +131,7 @@ function App() {
                 id="text"
                 className="form-control form-control-lg"
                 rows="4"
-                placeholder="e.g., A melody woven from the lessons of wanderers and wise men..."
+                placeholder="e.g., A sunrise after a storm..."
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 required
@@ -138,7 +166,7 @@ function App() {
             </div>
           )}
 
-          {/* Backend-level message */}
+          {/* Backend message */}
           {backendMessage && (
             <div className="text-center my-4">
               <div className="alert alert-warning shadow-sm">
@@ -147,7 +175,7 @@ function App() {
             </div>
           )}
 
-          {/* Playlist */}
+          {/* Playlist Results */}
           {Array.isArray(results) && results.length > 0 && (
             <div className="mt-5">
               <h2 className="text-center mb-4 text-success fw-bold">
@@ -174,7 +202,8 @@ function App() {
                         <p className="mb-0 text-muted">
                           <small>
                             <strong>Album:</strong> {item.Album} |{" "}
-                            <strong>Released:</strong> {item.released} yrs ago
+                            <strong>Released:</strong> {item.released ?? "N/A"}{" "}
+                            yrs ago
                           </small>
                         </p>
                       </div>
