@@ -7,33 +7,55 @@ function App() {
   const [emotion, setEmotion] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [clickedSongText, setClickedSongText] = useState("");
+  const [clickedIndex, setClickedIndex] = useState(null);
   const [showCookingMessage, setShowCookingMessage] = useState(false);
+  const [backendMessage, setBackendMessage] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setShowCookingMessage(true);
     setResults([]);
-    setClickedSongText("");
+    setClickedIndex(null);
+    setBackendMessage("");
 
     try {
       const response = await axios.post(
         `${process.env.REACT_APP_PYTHON_CODE}/hit_me`,
-        { text: text, emotion: emotion }
+        { text, emotion }
       );
-      setResults(response.data);
+
+      console.log("⚙️ Axios response:", response);
+
+      const payload = response.data;
+
+      if (Array.isArray(payload)) {
+        // backend returned raw array
+        setResults(payload);
+      } else if (payload.status === "success" && Array.isArray(payload.data)) {
+        setResults(payload.data);
+      } else if (
+        payload.status === "no_matches" ||
+        payload.status === "error"
+      ) {
+        setBackendMessage(payload.message || "No matches found. Try again.");
+      } else {
+        setBackendMessage("Unexpected response format from server.");
+        console.warn("Unexpected payload:", payload);
+      }
     } catch (error) {
-      console.error(error);
-      alert("Something went wrong. Please try again!");
+      console.error("⚠️ AxiosError:", error);
+      setBackendMessage(
+        "Network error. Please check that your backend is reachable."
+      );
     } finally {
       setLoading(false);
       setShowCookingMessage(false);
     }
   };
 
-  const handleSongClick = (item) => {
-    setClickedSongText(item.text);
+  const handleSongClick = (index) => {
+    setClickedIndex(clickedIndex === index ? null : index);
   };
 
   return (
@@ -44,63 +66,60 @@ function App() {
           <h1 className="display-4 fw-bold">🎵 AI Playlist Generator</h1>
           <p className="lead mt-3">
             Ever wanted a playlist that <em>feels</em> exactly like your mood or
-            story? This AI-powered tool searches through{" "}
-            <strong>over 90,000 songs</strong> and handpicks the{" "}
-            <strong>top 20 tracks</strong> that match your emotions and vibe. No
-            more random playlists — just pure emotional connection to music.
-            Simply describe your feeling, and let the magic happen.
+            story? This AI-powered tool turns your emotions and words into
+            personalized song recommendations; no more random playlists, just
+            pure emotional connection to music. Simply describe your vibe, and
+            let the magic happen.
           </p>
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Form */}
       <main className="flex-grow-1">
         <div className="container my-5">
-          {/* Form */}
           <form onSubmit={handleSubmit} className="card shadow p-4 border-0">
             <h2 className="mb-4 text-center text-primary fw-semibold">
               Describe Your Mood
             </h2>
-
             <div className="mb-3">
               <label htmlFor="emotion" className="form-label fw-semibold">
                 Emotion
               </label>
               <input
+                id="emotion"
                 type="text"
                 className="form-control form-control-lg"
-                id="emotion"
                 placeholder="e.g., joy, sadness, excitement..."
                 value={emotion}
                 onChange={(e) => setEmotion(e.target.value)}
                 required
               />
             </div>
-
             <div className="mb-4">
               <label htmlFor="text" className="form-label fw-semibold">
                 Describe the Story or Vibe
               </label>
               <textarea
-                className="form-control form-control-lg"
                 id="text"
+                className="form-control form-control-lg"
                 rows="4"
-                placeholder="e.g., A melody woven from the lessons of wanderers and wise men...."
+                placeholder="e.g., A melody woven from the lessons of wanderers and wise men..."
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 required
-              ></textarea>
+              />
             </div>
-
             <div className="d-grid">
-              <button type="submit" className="btn btn-primary btn-lg shadow">
+              <button
+                className="btn btn-primary btn-lg shadow"
+                disabled={loading}
+              >
                 {loading ? (
                   <>
                     <span
                       className="spinner-border spinner-border-sm me-2"
                       role="status"
-                      aria-hidden="true"
-                    ></span>
+                    />
                     Cooking your playlist...
                   </>
                 ) : (
@@ -110,57 +129,67 @@ function App() {
             </div>
           </form>
 
-          {/* Funny Message */}
+          {/* Cooking message */}
           {showCookingMessage && (
             <div className="text-center my-4">
-              <div className="alert alert-info shadow-sm" role="alert">
+              <div className="alert alert-info shadow-sm">
                 🍳 We are cooking up your perfect playlist... Hold tight!
               </div>
             </div>
           )}
 
-          {/* Playlist Results */}
-          {results.length > 0 && (
+          {/* Backend-level message */}
+          {backendMessage && (
+            <div className="text-center my-4">
+              <div className="alert alert-warning shadow-sm">
+                {backendMessage}
+              </div>
+            </div>
+          )}
+
+          {/* Playlist */}
+          {Array.isArray(results) && results.length > 0 && (
             <div className="mt-5">
               <h2 className="text-center mb-4 text-success fw-bold">
-                🎶 Your AI-Generated Playlist
+                🎶 Your AI‑Generated Playlist
               </h2>
               <div className="list-group shadow-sm">
-                {results.map((item, index) => (
-                  <div
-                    className="list-group-item list-group-item-action d-flex align-items-center"
-                    key={index}
-                    onClick={() => handleSongClick(item)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <div className="flex-shrink-0">
-                      <span className="badge rounded-pill bg-primary me-3">
-                        {index + 1}
-                      </span>
-                    </div>
-                    <div className="flex-grow-1">
-                      <h5 className="mb-1 fw-bold">{item.song}</h5>
-                      <small className="text-muted">
-                        {item["Artist(s)"]} • {item.Genre} • {item.Length}
-                      </small>
-                      <p className="mb-0 text-muted">
-                        <small>
-                          <strong>Album:</strong> {item.Album} |{" "}
-                          <strong>Released:</strong> {item.released} yrs ago
+                {results.map((item, idx) => (
+                  <div key={idx} className="mb-3">
+                    <div
+                      className="list-group-item list-group-item-action d-flex align-items-center"
+                      onClick={() => handleSongClick(idx)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <div className="flex-shrink-0">
+                        <span className="badge rounded-pill bg-primary me-3">
+                          {idx + 1}
+                        </span>
+                      </div>
+                      <div className="flex-grow-1">
+                        <h5 className="mb-1 fw-bold">{item.song}</h5>
+                        <small className="text-muted">
+                          {item["Artist(s)"]} • {item.Genre} • {item.Length}
                         </small>
-                      </p>
+                        <p className="mb-0 text-muted">
+                          <small>
+                            <strong>Album:</strong> {item.Album} |{" "}
+                            <strong>Released:</strong> {item.released} yrs ago
+                          </small>
+                        </p>
+                      </div>
                     </div>
+                    {clickedIndex === idx && (
+                      <div className="card shadow-sm p-3 mt-2">
+                        <h6 className="fw-bold text-primary mb-2">
+                          🎤 Lyrics Preview
+                        </h6>
+                        <p className="mb-0">{item.text}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-
-              {/* Clicked Song Text */}
-              {clickedSongText && (
-                <div className="card shadow p-4 mt-4">
-                  <h4 className="fw-bold text-primary mb-3">🎤 Song Preview</h4>
-                  <p className="lead">{clickedSongText}</p>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -170,7 +199,7 @@ function App() {
       <footer className="bg-primary text-white text-center py-3 mt-auto shadow-sm">
         <small>
           © {new Date().getFullYear()} AI Playlist Generator | Crafted by
-          Mohamed Gad
+          Mohamed Gad
         </small>
       </footer>
     </div>
